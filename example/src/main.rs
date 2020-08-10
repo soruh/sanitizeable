@@ -104,25 +104,37 @@ fn main_user() {
 /// Another way to use this
 
 #[sanitizeable]
+#[derive(Clone)]
+#[public_attr::derive(Copy)]
 struct Product {
-    name: String,
+    name: &'static str,
+    #[private_attr::doc = "This is the extremly inflated price"]
+    // This attribute only shows up on the private variant
     price: f64,
     #[private]
     worth: f64,
+    #[private]
+    manager_message: String,
 }
 
 impl Product {
-    fn new(name: &str, price: f64, worth: f64) -> Self {
-        Self::from_private(<Self as Sanitizeable>::Private::new(name, price, worth))
+    fn new(name: &'static str, price: f64, worth: f64, manager_message: &str) -> Self {
+        Self::from_private(<Self as Sanitizeable>::Private::new(
+            name,
+            price,
+            worth,
+            manager_message,
+        ))
     }
 }
 
 impl ProductPrivate {
-    fn new(name: &str, price: f64, worth: f64) -> Self {
+    fn new(name: &'static str, price: f64, worth: f64, manager_message: &str) -> Self {
         Self {
-            name: name.to_string(),
+            name,
             price,
             worth,
+            manager_message: manager_message.to_string(),
         }
     }
     fn markup(&self) -> f64 {
@@ -151,7 +163,7 @@ impl core::fmt::Display for ProductPublic {
 }
 
 fn main_product() {
-    let product = Product::new("Printer Ink Cartrige", 24.50, 0.50);
+    let product = Product::new("Printer Ink Cartrige", 24.50, 0.50, "Work harder!");
 
     println!("{}", product.public());
     println!("{}", product.private());
