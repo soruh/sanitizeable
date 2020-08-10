@@ -2,6 +2,7 @@
 
 use sanitizeable::{sanitizeable, Sanitizeable};
 
+/// One way to use this
 #[sanitizeable]
 #[derive(Debug)]
 #[private_attr::derive(PartialEq)] // This could be serde::Serialize
@@ -71,8 +72,8 @@ impl PrivateUser {
     }
 }
 
-fn main() {
-    let mut user = User::new(PrivateUser {
+fn main_user() {
+    let mut user = User::from_private(PrivateUser {
         name: "Max Musterman".into(),
         address: "Example Street, 64d".into(),
         username: "max_1123".into(),
@@ -98,4 +99,69 @@ fn main() {
     println!("{}", user.into_private()); // Note: we `can` have into_private since I did some very ugly things to make it work (idk. if it actually does)
 
     // `user` has been moved
+}
+
+/// Another way to use this
+
+#[sanitizeable]
+struct Product {
+    name: String,
+    price: f64,
+    #[private]
+    worth: f64,
+}
+
+impl Product {
+    fn new(name: &str, price: f64, worth: f64) -> Self {
+        Self::from_private(<Self as Sanitizeable>::Private::new(name, price, worth))
+    }
+}
+
+impl PrivateProduct {
+    fn new(name: &str, price: f64, worth: f64) -> Self {
+        Self {
+            name: name.to_string(),
+            price,
+            worth,
+        }
+    }
+    fn markup(&self) -> f64 {
+        self.price - self.worth
+    }
+}
+
+impl core::fmt::Display for PrivateProduct {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "The product \"{}\" costs ${:.2} and is worth ${:.2}. We gain ${:.2} ({}% of worth)",
+            self.name,
+            self.price,
+            self.worth,
+            self.markup(),
+            self.markup() * 100. / self.worth,
+        )
+    }
+}
+
+impl core::fmt::Display for PublicProduct {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "The product \"{}\" costs ${:.2}", self.name, self.price,)
+    }
+}
+
+fn main_product() {
+    let product = Product::new("Printer Ink Cartrige", 24.50, 0.50);
+
+    println!("{}", product.public());
+    println!("{}", product.private());
+}
+
+/// main
+
+fn main() {
+    main_user();
+    println!();
+    println!();
+    main_product();
 }

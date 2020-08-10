@@ -110,7 +110,7 @@ pub fn sanitizeable(args: TokenStream, input: TokenStream) -> proc_macro::TokenS
             type Public = #public_name;
             type Private = #private_name;
 
-            fn new(private: Self::Private) -> Self {
+            fn from_private(private: Self::Private) -> Self {
                 Self(#union_name {
                     private: core::mem::ManuallyDrop::new(private),
                 })
