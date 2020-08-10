@@ -9,7 +9,8 @@ You don't!
 - it needs nightly (`#![feature(untagged_unions)]` and `#![feature(drain_filter)]`)
 - (it uses `untagged_unions`)
 - The resulting structs are always `repr(C)`.
-
+- I only tried this with the example and it "works on my machine"...
+- This should work with all types of data (that can be put in a `repr(C)` struct) and all targets, but I can't guarantee that.
 
 
 # What does it do?
