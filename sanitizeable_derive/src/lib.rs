@@ -6,7 +6,10 @@ use syn::{
 };
 
 fn check_privacy(field: &mut Field) -> bool {
+    // dbg!(quote! {#field}.to_string());
+
     let len_public = field.attrs.len();
+
     field.attrs = field
         .attrs
         .iter()
@@ -14,7 +17,11 @@ fn check_privacy(field: &mut Field) -> bool {
         .cloned()
         .collect();
 
-    field.attrs.len() < len_public
+    let is_private = field.attrs.len() < len_public;
+
+    // dbg!(is_private),
+
+    is_private
 }
 
 fn split_attrs(
@@ -103,6 +110,14 @@ fn derive_names(input: Ident, attrs: AttributeArgs) -> (Ident, Ident, Ident, Ide
     (private_name, public_name, union_name, container_name)
 }
 
+fn field_with_attrs(mut field: Field, mut attrs: Vec<Vec<Attribute>>) -> Field {
+    field.attrs = attrs.pop().unwrap_or_else(Vec::new);
+    for attr_args in attrs {
+        field.attrs.extend(attr_args);
+    }
+    field
+}
+
 #[proc_macro_attribute]
 pub fn sanitizeable(
     args: proc_macro::TokenStream,
@@ -120,43 +135,49 @@ pub fn sanitizeable(
 
     let (private_name, public_name, union_name, container_name) = derive_names(input.ident, args);
 
-    let mut private_fields = Vec::new();
-    let mut public_fields = Vec::new();
-
     let mut phantom_fields = Vec::new();
 
     if input.fields.is_empty() {
         panic!("struct has no fields");
     }
 
+    let mut private = Vec::new();
+    let mut public = Vec::new();
+
     for mut field in input.fields.clone() {
         let is_private = check_privacy(&mut field);
 
-        let (private_attrs, public_attrs, normal_attrs, phantom_attrs) =
-            split_attrs(field.attrs.clone());
-
         if is_private {
-            {
-                let mut phantom_field = field.clone();
-                phantom_field.attrs = phantom_attrs;
-                phantom_field.attrs.extend(normal_attrs.clone());
-                phantom_fields.push(phantom_field);
-            }
-
-            {
-                let mut private_field = field;
-                private_field.attrs = private_attrs;
-                private_field.attrs.extend(normal_attrs);
-                private_fields.push(private_field);
-            }
+            private.push(field);
         } else {
-            {
-                let mut public_field = field.clone();
-                public_field.attrs = public_attrs;
-                public_field.attrs.extend(normal_attrs.clone());
-                public_fields.push(public_field);
-            }
+            public.push(field);
         }
+    }
+
+    let mut private_fields: Vec<Field> = Vec::new();
+    let mut public_fields: Vec<Field> = Vec::new();
+
+    for field in public {
+        let (private_attrs, public_attrs, normal_attrs, _) = split_attrs(field.attrs.clone());
+
+        public_fields.push(field_with_attrs(
+            field.clone(),
+            vec![public_attrs, normal_attrs.clone()],
+        ));
+        private_fields.push(field_with_attrs(
+            field,
+            vec![private_attrs.clone(), normal_attrs.clone()],
+        ));
+    }
+
+    for field in private {
+        let (private_attrs, _, normal_attrs, phantom_attrs) = split_attrs(field.attrs.clone());
+
+        phantom_fields.push(field_with_attrs(
+            field.clone(),
+            vec![phantom_attrs, normal_attrs.clone()],
+        ));
+        private_fields.push(field_with_attrs(field, vec![private_attrs, normal_attrs]));
     }
 
     if private_fields.is_empty() {
@@ -183,7 +204,6 @@ pub fn sanitizeable(
     };
 
     let mut private_fields = quote! {
-        #(#public_fields,)*
         #(#private_fields,)*
     };
 
@@ -191,6 +211,9 @@ pub fn sanitizeable(
         #(#public_fields,)*
         #phantom
     };
+
+    // dbg!(private_fields.to_string());
+    // dbg!(public_fields.to_string());
 
     match &input.fields {
         syn::Fields::Named(FieldsNamed { brace_token, .. }) => {

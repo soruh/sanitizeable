@@ -2,7 +2,7 @@
 
 use sanitizeable::{sanitizeable, Sanitizeable};
 
-/// One way to use this
+// One way to use this
 #[sanitizeable]
 #[derive(Debug)]
 #[private_attr::derive(PartialEq)] // This could be serde::Serialize
@@ -102,7 +102,7 @@ fn main_user() {
     // `user` has been moved
 }
 
-/// Another way to use this
+// Another way to use this
 
 #[sanitizeable(
     private_name = "Theft",
@@ -188,11 +188,42 @@ where
 #[sanitizeable]
 struct Unnamed(u64, #[private] f64);
 
-/// main
+// What not to do:
+
+#[sanitizeable]
+#[derive(Debug)]
+struct UndefinedBehaviour {
+    #[private]
+    field_a: String,
+
+    #[public_attr::cfg(target_os = "android")]
+    field_b: String,
+    field_c: u64,
+}
+
+unsafe fn null_pointer_dereference() {
+    let mut undef = UndefinedBehaviour::from_private(UndefinedBehaviourPrivate {
+        field_a: "Safe".into(),
+        field_b: "Broken".into(),
+        field_c: 0,
+    });
+
+    dbg!(undef.private());
+    dbg!(undef.public());
+
+    undef.public_mut().field_c = 0;
+
+    dbg!(undef.public());
+    dbg!(undef.private()); // Segfault
+}
+
+// main
 
 fn main() {
     main_user();
     println!();
     println!();
     main_product();
+
+    unsafe { null_pointer_dereference() }
 }
