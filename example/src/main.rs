@@ -1,3 +1,9 @@
+// TODO: remove
+#![feature(fmt_internals)]
+#![feature(print_internals)]
+#![feature(derive_clone_copy)]
+#![feature(structural_match)]
+// TODO
 #![feature(untagged_unions)]
 
 use sanitizeable::{sanitizeable, Sanitizeable};
@@ -124,12 +130,8 @@ struct ThisNameIsPrettyIrrelevantDueToOurAttributes {
 
 impl ProductContainer {
     fn new(name: &'static str, price: f64, worth: f64, manager_message: &str) -> Self {
-        Self::from_private(<Self as Sanitizeable>::Private::new(
-            name,
-            price,
-            worth,
-            manager_message,
-        ))
+        // TODO: <Self as Sanitizeable>::Private
+        Self::from_private(Theft::new(name, price, worth, manager_message))
     }
 }
 
@@ -173,6 +175,23 @@ fn main_product() {
     println!("{}", product.public());
     println!("{}", product.private());
 }
+
+// Test generics
+
+#[sanitizeable]
+struct GenericStruct<'name, T>
+where
+    T: Sized + Debug,
+{
+    pub name: &'name str,
+    #[private]
+    pub value: T,
+}
+
+// Test unnamed fields
+
+#[sanitizeable]
+struct Unnamed(u64, #[private] f64);
 
 /// main
 
