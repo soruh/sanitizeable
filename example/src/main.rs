@@ -103,10 +103,15 @@ fn main_user() {
 
 /// Another way to use this
 
-#[sanitizeable]
+#[sanitizeable(
+    private_name = "Theft",
+    public_name = "Product",
+    container_name = "ProductContainer",
+    union_name = "_ProductUnion", // You probably only want to use this if the automatic name causes conflicts
+)]
 #[derive(Clone)]
 #[public_attr::derive(Copy)]
-struct Product {
+struct ThisNameIsPrettyIrrelevantDueToOurAttributes {
     name: &'static str,
     #[private_attr::doc = "This is the extremly inflated price"]
     // This attribute only shows up on the private variant
@@ -117,7 +122,7 @@ struct Product {
     manager_message: String,
 }
 
-impl Product {
+impl ProductContainer {
     fn new(name: &'static str, price: f64, worth: f64, manager_message: &str) -> Self {
         Self::from_private(<Self as Sanitizeable>::Private::new(
             name,
@@ -128,7 +133,7 @@ impl Product {
     }
 }
 
-impl ProductPrivate {
+impl Theft {
     fn new(name: &'static str, price: f64, worth: f64, manager_message: &str) -> Self {
         Self {
             name,
@@ -142,7 +147,7 @@ impl ProductPrivate {
     }
 }
 
-impl core::fmt::Display for ProductPrivate {
+impl core::fmt::Display for Theft {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -156,14 +161,14 @@ impl core::fmt::Display for ProductPrivate {
     }
 }
 
-impl core::fmt::Display for ProductPublic {
+impl core::fmt::Display for Product {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "The product \"{}\" costs ${:.2}", self.name, self.price,)
     }
 }
 
 fn main_product() {
-    let product = Product::new("Printer Ink Cartrige", 24.50, 0.50, "Work harder!");
+    let product = ProductContainer::new("Printer Ink Cartrige", 24.50, 0.50, "Work harder!");
 
     println!("{}", product.public());
     println!("{}", product.private());

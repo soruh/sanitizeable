@@ -1,8 +1,11 @@
 #![feature(drain_filter)]
 
-use proc_macro::TokenStream;
+use proc_macro2::Span;
 use quote::quote;
-use syn::{parse_macro_input, Attribute, AttributeArgs, Field, ItemStruct};
+use syn::{
+    parse_macro_input, Attribute, AttributeArgs, Field, Ident, ItemStruct, Lit, Meta,
+    MetaNameValue, NestedMeta,
+};
 
 fn check_privacy(field: &mut Field) -> bool {
     let private_fields: Vec<_> = field
@@ -42,9 +45,55 @@ fn split_attrs(attrs: Vec<Attribute>) -> (Vec<Attribute>, Vec<Attribute>, Vec<At
     (private_attrs, public_attrs, normal_attrs)
 }
 
+macro_rules! name_attr {
+    ($attrs: ident, $key: literal) => {{
+        let expected_ident = Ident::new($key, Span::call_site());
+        // Check if the attr path is an assigment that has only $key as it's path
+        // and return its string value (if it has one)
+        $attrs.iter().find_map(|attr| match attr.clone() {
+            NestedMeta::Meta(Meta::NameValue(MetaNameValue {
+                path:
+                    syn::Path {
+                        leading_colon: None,
+                        segments,
+                    },
+                lit,
+                ..
+            })) if segments
+                .iter()
+                .map(|segment| &segment.ident)
+                .collect::<Vec<_>>()
+                == vec![&expected_ident] =>
+            {
+                match lit {
+                    Lit::Str(ref string) => Some(Ident::new(&string.value(), lit.span())),
+                    _ => None,
+                }
+            }
+            _ => None,
+        })
+    }};
+}
+
+fn derive_names(input: Ident, attrs: AttributeArgs) -> (Ident, Ident, Ident, Ident) {
+    let span = input.span();
+    let private_name = name_attr!(attrs, "private_name")
+        .unwrap_or_else(|| Ident::new(&format!("{}Private", input), span));
+    let public_name = name_attr!(attrs, "public_name")
+        .unwrap_or_else(|| Ident::new(&format!("{}Public", input), span));
+    let union_name = name_attr!(attrs, "union_name")
+        .unwrap_or_else(|| Ident::new(&format!("{}Union", input), span));
+    let container_name = name_attr!(attrs, "container_name").unwrap_or_else(|| input);
+
+    (private_name, public_name, union_name, container_name)
+}
+
 #[proc_macro_attribute]
-pub fn sanitizeable(args: TokenStream, input: TokenStream) -> proc_macro::TokenStream {
-    let _args = parse_macro_input!(args as AttributeArgs);
+pub fn sanitizeable(
+    args: proc_macro::TokenStream,
+    input: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
+    let args = parse_macro_input!(args as AttributeArgs);
     let input = parse_macro_input!(input as ItemStruct);
 
     let visibility = input.vis;
@@ -52,10 +101,7 @@ pub fn sanitizeable(args: TokenStream, input: TokenStream) -> proc_macro::TokenS
 
     let (private_attrs, public_attrs, normal_attrs) = split_attrs(input.attrs);
 
-    let private_name = syn::Ident::new(&format!("{}Private", input.ident), input.ident.span());
-    let public_name = syn::Ident::new(&format!("{}Public", input.ident), input.ident.span());
-    let union_name = syn::Ident::new(&format!("{}Union", input.ident), input.ident.span());
-    let struct_name = input.ident;
+    let (private_name, public_name, union_name, container_name) = derive_names(input.ident, args);
 
     let mut private_fields = Vec::new();
     let mut public_fields = Vec::new();
@@ -109,10 +155,10 @@ pub fn sanitizeable(args: TokenStream, input: TokenStream) -> proc_macro::TokenS
 
 
         #[repr(transparent)]
-        #visibility struct #struct_name(#union_name);
+        #visibility struct #container_name(#union_name);
 
 
-        impl core::ops::Drop for #struct_name {
+        impl core::ops::Drop for #container_name {
             fn drop(&mut self) {
                 unsafe {
                     core::mem::ManuallyDrop::drop(&mut self.0.private);
@@ -120,7 +166,7 @@ pub fn sanitizeable(args: TokenStream, input: TokenStream) -> proc_macro::TokenS
             }
         }
 
-        impl ::sanitizeable::Sanitizeable for #struct_name { // TODO
+        impl ::sanitizeable::Sanitizeable for #container_name { // TODO
             type Public = #public_name;
             type Private = #private_name;
 
@@ -147,5 +193,5 @@ pub fn sanitizeable(args: TokenStream, input: TokenStream) -> proc_macro::TokenS
         }
     };
 
-    TokenStream::from(expanded)
+    proc_macro::TokenStream::from(expanded)
 }
