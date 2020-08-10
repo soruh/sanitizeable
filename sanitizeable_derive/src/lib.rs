@@ -1,3 +1,5 @@
+#![feature(proc_macro_diagnostic)]
+
 use proc_macro2::Span;
 use quote::quote;
 use syn::{
@@ -17,11 +19,23 @@ fn check_privacy(field: &mut Field) -> bool {
         .cloned()
         .collect();
 
-    let is_private = field.attrs.len() < len_public;
+    field.attrs.len() < len_public
+}
 
-    // dbg!(is_private),
+fn build_remaining_attr(
+    segments: syn::punctuated::Iter<syn::PathSegment>,
+) -> syn::punctuated::Punctuated<syn::PathSegment, syn::Token!(::)> {
+    let last_segment = &segments.clone().last().expect("Empty attribute").ident;
+    if last_segment.to_string().as_str() == "cfg" {
+        proc_macro::Diagnostic::spanned(
+            last_segment.span().unwrap(),
+            proc_macro::Level::Error,
+            "You may not use `cfg` in an attribute that is only applied to some variants",
+        )
+        .emit();
+    }
 
-    is_private
+    segments.cloned().collect()
 }
 
 fn split_attrs(
@@ -41,19 +55,19 @@ fn split_attrs(
         let mut segments = attr.path.segments.iter();
         if let Some(first) = segments.next() {
             if first.ident == "private_attr" {
-                attr.path.segments = segments.cloned().collect();
+                attr.path.segments = build_remaining_attr(segments);
                 private_attrs.push(attr);
                 continue;
             }
 
             if first.ident == "public_attr" {
-                attr.path.segments = segments.cloned().collect();
+                attr.path.segments = build_remaining_attr(segments);
                 public_attrs.push(attr);
                 continue;
             }
 
             if first.ident == "phantom_attr" {
-                attr.path.segments = segments.cloned().collect();
+                attr.path.segments = build_remaining_attr(segments);
                 phantom_attrs.push(attr);
                 continue;
             }
@@ -133,12 +147,21 @@ pub fn sanitizeable(
 
     let (private_attrs, public_attrs, normal_attrs, _phantom_attrs) = split_attrs(input.attrs);
 
-    let (private_name, public_name, union_name, container_name) = derive_names(input.ident, args);
+    let (private_name, public_name, union_name, container_name) =
+        derive_names(input.ident.clone(), args);
 
     let mut phantom_fields = Vec::new();
 
     if input.fields.is_empty() {
-        panic!("struct has no fields");
+        proc_macro::Diagnostic::spanned(
+            vec![
+                input.struct_token.span.unwrap(),
+                input.ident.span().unwrap(),
+            ],
+            proc_macro::Level::Error,
+            "struct has no fields",
+        )
+        .emit();
     }
 
     let mut private = Vec::new();
@@ -180,8 +203,16 @@ pub fn sanitizeable(
         private_fields.push(field_with_attrs(field, vec![private_attrs, normal_attrs]));
     }
 
-    if private_fields.is_empty() {
-        panic!("struct has no private fields"); // TODO: make warning
+    if phantom_fields.is_empty() {
+        proc_macro::Diagnostic::spanned(
+            vec![
+                input.struct_token.span.unwrap(),
+                input.ident.span().unwrap(),
+            ],
+            proc_macro::Level::Warning,
+            "struct has no private fields",
+        )
+        .emit();
     }
 
     let phantom = if phantom_fields.is_empty() {
