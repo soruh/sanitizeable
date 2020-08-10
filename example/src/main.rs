@@ -21,7 +21,7 @@ struct User {
     pub social_security_number: String,
 }
 
-impl std::fmt::Display for PublicUser {
+impl std::fmt::Display for UserPublic {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -38,7 +38,7 @@ impl std::fmt::Display for PublicUser {
     }
 }
 
-impl std::fmt::Display for PrivateUser {
+impl std::fmt::Display for UserPrivate {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -61,7 +61,7 @@ fn change_birthday(user: &mut <User as Sanitizeable>::Public, new_birthday: (u16
     user.birthday = new_birthday;
 }
 
-impl PrivateUser {
+impl UserPrivate {
     fn reset_pin(&mut self) -> &mut Self {
         self.pin = None;
         self
@@ -73,7 +73,7 @@ impl PrivateUser {
 }
 
 fn main_user() {
-    let mut user = User::from_private(PrivateUser {
+    let mut user = User::from_private(UserPrivate {
         name: "Max Musterman".into(),
         address: "Example Street, 64d".into(),
         username: "max_1123".into(),
@@ -91,7 +91,7 @@ fn main_user() {
     change_birthday(user.public_mut(), (2000, 4, 20));
     user.private_mut().reset_pin().add_to_score(16.5);
 
-    let public_copy: PublicUser = user.public().clone(); // Note: we can't have into_public due to how `Drop` works
+    let public_copy: UserPublic = user.public().clone(); // Note: we can't have into_public due to how `Drop` works
 
     println!();
 
@@ -117,7 +117,7 @@ impl Product {
     }
 }
 
-impl PrivateProduct {
+impl ProductPrivate {
     fn new(name: &str, price: f64, worth: f64) -> Self {
         Self {
             name: name.to_string(),
@@ -130,7 +130,7 @@ impl PrivateProduct {
     }
 }
 
-impl core::fmt::Display for PrivateProduct {
+impl core::fmt::Display for ProductPrivate {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -144,7 +144,7 @@ impl core::fmt::Display for PrivateProduct {
     }
 }
 
-impl core::fmt::Display for PublicProduct {
+impl core::fmt::Display for ProductPublic {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "The product \"{}\" costs ${:.2}", self.name, self.price,)
     }

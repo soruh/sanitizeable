@@ -52,9 +52,9 @@ pub fn sanitizeable(args: TokenStream, input: TokenStream) -> proc_macro::TokenS
 
     let (private_attrs, public_attrs, normal_attrs) = split_attrs(input.attrs);
 
-    let private_name = syn::Ident::new(&format!("Private{}", input.ident), input.ident.span());
-    let public_name = syn::Ident::new(&format!("Public{}", input.ident), input.ident.span());
-    let union_name = syn::Ident::new(&format!("Union{}", input.ident), input.ident.span());
+    let private_name = syn::Ident::new(&format!("{}Private", input.ident), input.ident.span());
+    let public_name = syn::Ident::new(&format!("{}Public", input.ident), input.ident.span());
+    let union_name = syn::Ident::new(&format!("{}Union", input.ident), input.ident.span());
     let struct_name = input.ident;
 
     let mut private_fields = Vec::new();
