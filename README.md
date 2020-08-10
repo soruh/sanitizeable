@@ -4,25 +4,24 @@ You don't!
 
 # Why should you not use this
 
-- I wrote this in an hour at 3AM.
 - It uses lots of `unsafe` none of which has Safety comments
-- it needs nightly (`#![feature(untagged_unions)]` and `#![feature(drain_filter)]`)
-- (it uses `untagged_unions`)
+- it needs nightly (`#![feature(untagged_unions)]` and `#![feature(proc_macro_diagnostic)]`)
 - The resulting structs are always `repr(C)`.
 - I only tried this with the example and it "works on my machine"...
 - This should work with all types of data (that can be put in a `repr(C)` struct) and all targets, but I can't guarantee that.
 
-
 # What does it do?
 
-This abomination allows you to annotate fields of a struct as private and
-creates variants of the struct that do / don't have those fields.
+It allows you to annotate fields of a struct as private and
+create variants of the struct that do / don't have those fields.
 You can then take references to each one.
 
 It also allows you to have attributes on only one one of the structs or both of them and to consume the container to turn it into the private variant.
 
+You may not use `cfg` on only one of the variants since that would break internal layout guarantees.
+
 TL/DR:
-Here is an [example](https://github.com/soruh/sanitizeable/blob/master/example/src/main.rs).
+There are [examples / tests](https://github.com/soruh/sanitizeable/blob/master/example/).
 
 # Why did you create this?
 
