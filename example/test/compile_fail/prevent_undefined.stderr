@@ -1,0 +1,5 @@
+error: You may not use #[cfg(...)] in an attribute that is only applied to some variants
+  --> $DIR/prevent_undefined.rs:13:20
+   |
+13 |     #[public_attr::cfg(all(target_os = "windows", target_os = "linux"))]
+   |                    ^^^

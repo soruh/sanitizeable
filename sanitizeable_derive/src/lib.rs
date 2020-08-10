@@ -30,7 +30,7 @@ fn build_remaining_attr(
         proc_macro::Diagnostic::spanned(
             last_segment.span().unwrap(),
             proc_macro::Level::Error,
-            "You may not use `cfg` in an attribute that is only applied to some variants",
+            "You may not use #[cfg(...)] in an attribute that is only applied to some variants",
         )
         .emit();
     }
