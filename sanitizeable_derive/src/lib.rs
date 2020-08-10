@@ -135,21 +135,27 @@ pub fn sanitizeable(
             split_attrs(field.attrs.clone());
 
         if is_private {
-            let mut phantom_field = field.clone();
-            phantom_field.attrs = phantom_attrs;
-            phantom_field.attrs.extend(normal_attrs.clone());
-            phantom_fields.push(phantom_field);
-        } else {
-            let mut public_field = field.clone();
-            public_field.attrs = public_attrs;
-            public_field.attrs.extend(normal_attrs.clone());
-            public_fields.push(public_field);
-        }
+            {
+                let mut phantom_field = field.clone();
+                phantom_field.attrs = phantom_attrs;
+                phantom_field.attrs.extend(normal_attrs.clone());
+                phantom_fields.push(phantom_field);
+            }
 
-        let mut private_field = field;
-        private_field.attrs = private_attrs;
-        private_field.attrs.extend(normal_attrs);
-        private_fields.push(private_field);
+            {
+                let mut private_field = field;
+                private_field.attrs = private_attrs;
+                private_field.attrs.extend(normal_attrs);
+                private_fields.push(private_field);
+            }
+        } else {
+            {
+                let mut public_field = field.clone();
+                public_field.attrs = public_attrs;
+                public_field.attrs.extend(normal_attrs.clone());
+                public_fields.push(public_field);
+            }
+        }
     }
 
     if private_fields.is_empty() {
@@ -176,6 +182,7 @@ pub fn sanitizeable(
     };
 
     let mut private_fields = quote! {
+        #(#public_fields,)*
         #(#private_fields,)*
     };
 
@@ -264,7 +271,6 @@ pub fn sanitizeable(
                 unsafe { &mut *self.0.private }
             }
             fn into_private(self) -> Self::Private {
-
                 let inner = unsafe {
                     let ptr = &self
                         as *const #container_name #generics

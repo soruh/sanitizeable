@@ -1,9 +1,3 @@
-// TODO: remove
-#![feature(fmt_internals)]
-#![feature(print_internals)]
-#![feature(derive_clone_copy)]
-#![feature(structural_match)]
-// TODO
 #![feature(untagged_unions)]
 
 use sanitizeable::{sanitizeable, Sanitizeable};
@@ -17,14 +11,15 @@ struct User {
     pub name: String,
     pub address: String,
     pub username: String,
-    pub id: u32,
-    pub score: f64,
-    pub birthday: (u16, u8, u8),
 
     #[private]
     pub pin: Option<u64>,
     #[private]
     pub social_security_number: String,
+
+    pub id: u32,
+    pub score: f64,
+    pub birthday: (u16, u8, u8),
 }
 
 impl std::fmt::Display for UserPublic {
