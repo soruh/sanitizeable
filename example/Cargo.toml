@@ -9,3 +9,6 @@ publish = false
 
 [dependencies]
 sanitizeable = { path = "../sanitizeable" }
+
+[dev-dependencies]
+trybuild = "1.0.31"
