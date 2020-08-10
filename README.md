@@ -24,7 +24,7 @@ I wanted automatic compile time guarantees that I don't accidentaly expose priva
 
 ## You shouldn't
 
-If you really want to though, there is an example in the example folder, which you can run with `cargo run`.
+If you really want to though, there is an [example](https://github.com/soruh/sanitizeable/blob/master/example/src/main.rs) in the example folder, which you can run with `cargo run`.
 
 # Contributing
 
