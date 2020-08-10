@@ -1,5 +1,3 @@
-#![feature(drain_filter)]
-
 use proc_macro2::Span;
 use quote::quote;
 use syn::{
@@ -8,12 +6,15 @@ use syn::{
 };
 
 fn check_privacy(field: &mut Field) -> bool {
-    let private_fields: Vec<_> = field
+    let len_public = field.attrs.len();
+    field.attrs = field
         .attrs
-        .drain_filter(|attr| attr.path.segments.first().unwrap().ident == "private")
+        .iter()
+        .filter(|attr| attr.path.segments.first().unwrap().ident != "private")
+        .cloned()
         .collect();
 
-    !private_fields.is_empty()
+    field.attrs.len() < len_public
 }
 
 fn split_attrs(
@@ -243,9 +244,7 @@ pub fn sanitizeable(
 
         impl #generics core::ops::Drop for #container_name #generics {
             fn drop(&mut self) {
-                unsafe {
-                    core::mem::ManuallyDrop::drop(&mut self.0.private);
-                }
+                unsafe { core::mem::ManuallyDrop::drop(&mut self.0.private); }
             }
         }
 
