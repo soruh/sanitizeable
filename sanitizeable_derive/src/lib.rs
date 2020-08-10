@@ -2,7 +2,7 @@
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, AttributeArgs, Field, ItemStruct};
+use syn::{parse_macro_input, Attribute, AttributeArgs, Field, ItemStruct};
 
 fn check_privacy(field: &mut Field) -> bool {
     let private_fields: Vec<_> = field
@@ -13,24 +13,12 @@ fn check_privacy(field: &mut Field) -> bool {
     !private_fields.is_empty()
 }
 
-#[proc_macro_attribute]
-pub fn sanitizeable(args: TokenStream, input: TokenStream) -> proc_macro::TokenStream {
-    let _args = parse_macro_input!(args as AttributeArgs);
-    let input = parse_macro_input!(input as ItemStruct);
-
-    let visibility = input.vis;
-    let generics = input.generics; // TODO: add PhantomData if needed?
-
-    let private_name = syn::Ident::new(&format!("Private{}", input.ident), input.ident.span());
-    let public_name = syn::Ident::new(&format!("Public{}", input.ident), input.ident.span());
-    let union_name = syn::Ident::new(&format!("Union{}", input.ident), input.ident.span());
-    let struct_name = input.ident;
-
+fn split_attrs(attrs: Vec<Attribute>) -> (Vec<Attribute>, Vec<Attribute>, Vec<Attribute>) {
     let mut private_attrs = Vec::new();
     let mut public_attrs = Vec::new();
     let mut normal_attrs = Vec::new();
 
-    for mut attr in input.attrs {
+    for mut attr in attrs {
         let mut segments = attr.path.segments.iter();
         if let Some(first) = segments.next() {
             if first.ident == "private_attr" {
@@ -51,6 +39,24 @@ pub fn sanitizeable(args: TokenStream, input: TokenStream) -> proc_macro::TokenS
         normal_attrs.push(attr);
     }
 
+    (private_attrs, public_attrs, normal_attrs)
+}
+
+#[proc_macro_attribute]
+pub fn sanitizeable(args: TokenStream, input: TokenStream) -> proc_macro::TokenStream {
+    let _args = parse_macro_input!(args as AttributeArgs);
+    let input = parse_macro_input!(input as ItemStruct);
+
+    let visibility = input.vis;
+    let generics = input.generics; // TODO: add PhantomData if needed?
+
+    let (private_attrs, public_attrs, normal_attrs) = split_attrs(input.attrs);
+
+    let private_name = syn::Ident::new(&format!("Private{}", input.ident), input.ident.span());
+    let public_name = syn::Ident::new(&format!("Public{}", input.ident), input.ident.span());
+    let union_name = syn::Ident::new(&format!("Union{}", input.ident), input.ident.span());
+    let struct_name = input.ident;
+
     let mut private_fields = Vec::new();
     let mut public_fields = Vec::new();
 
@@ -61,11 +67,19 @@ pub fn sanitizeable(args: TokenStream, input: TokenStream) -> proc_macro::TokenS
     for mut field in input.fields {
         let is_private = check_privacy(&mut field);
 
+        let (private_attrs, public_attrs, normal_attrs) = split_attrs(field.attrs.clone());
+
         if !is_private {
-            public_fields.push(field.clone());
+            let mut public_field = field.clone();
+            public_field.attrs = public_attrs;
+            public_field.attrs.extend(normal_attrs.clone());
+            public_fields.push(public_field);
         }
 
-        private_fields.push(field.clone());
+        let mut private_field = field;
+        private_field.attrs = private_attrs;
+        private_field.attrs.extend(normal_attrs);
+        private_fields.push(private_field);
     }
 
     if private_fields.is_empty() {
