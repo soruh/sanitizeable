@@ -1,0 +1,2 @@
+[workspace]
+members = ["sanitizeable", "sanitizeable_derive", "example"]
