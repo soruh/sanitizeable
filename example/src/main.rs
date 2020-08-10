@@ -57,7 +57,7 @@ impl std::fmt::Display for PrivateUser {
     }
 }
 
-fn change_birthday(user: &mut PublicUser, new_birthday: (u16, u8, u8)) {
+fn change_birthday(user: &mut <User as Sanitizeable>::Public, new_birthday: (u16, u8, u8)) {
     user.birthday = new_birthday;
 }
 
