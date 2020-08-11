@@ -1,14 +1,8 @@
-# You probably do not want to use this
-
-You don't!
-
-# Why should you not use this
+# Don't use this in production!
 
 - It uses lots of `unsafe` none of which has Safety comments
 - it needs nightly (`#![feature(untagged_unions)]` and `#![feature(proc_macro_diagnostic)]`)
 - The resulting structs are always `repr(C)`.
-- I only tried this with the example and it "works on my machine"...
-- This should work with all types of data (that can be put in a `repr(C)` struct) and all targets, but I can't guarantee that.
 
 # What does it do?
 
