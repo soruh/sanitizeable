@@ -1,24 +1,6 @@
 use crate::datatypes::{Attrs, FieldTokenStreams, Fields, Names};
 use syn::{AttributeArgs, ItemStruct};
 
-pub trait Intermediate {
-    type Output;
-    fn next(self) -> Self::Output;
-}
-
-pub trait Absorbing {
-    fn finish(self) -> proc_macro2::TokenStream;
-}
-
-impl<S: Intermediate> Absorbing for S
-where
-    S::Output: Absorbing,
-{
-    fn finish(self) -> proc_macro2::TokenStream {
-        self.next().finish()
-    }
-}
-
 pub struct Init {
     pub args: AttributeArgs,
     pub input: ItemStruct,

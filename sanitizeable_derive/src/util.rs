@@ -6,19 +6,21 @@ use syn::{
     Attribute, Field, FieldsNamed, FieldsUnnamed, Ident, Lit, Meta, MetaNameValue, NestedMeta,
 };
 
-pub fn check_privacy(field: &mut Field) -> bool {
-    // dbg!(quote! {#field}.to_string());
+fn attr_is_private(attr: &Attribute) -> bool {
+    attr.path.segments.first().unwrap().ident == "private"
+}
 
-    let len_public = field.attrs.len();
+fn is_private(field: &Field) -> bool {
+    field.attrs.iter().any(attr_is_private)
+}
 
+fn remove_private_attrs(mut field: Field) -> Field {
     field.attrs = field
         .attrs
-        .iter()
-        .filter(|attr| attr.path.segments.first().unwrap().ident != "private")
-        .cloned()
+        .into_iter()
+        .filter(|attr| !attr_is_private(attr))
         .collect();
-
-    field.attrs.len() < len_public
+    field
 }
 
 pub fn build_remaining_attr(
@@ -79,50 +81,44 @@ pub fn split_attrs(attrs: &[Attribute]) -> Attrs {
 }
 
 macro_rules! name_attr {
-    ($attrs: ident, $key: literal) => {{
+    ($input: ident, $attrs: ident, $key: literal, $otherwise: literal) => {{
         let expected_ident = Ident::new($key, Span::call_site());
         // Check if the attr path is an assigment that has only $key as it's path
         // and return its string value (if it has one)
-        $attrs.iter().find_map(|attr| match attr.clone() {
-            NestedMeta::Meta(Meta::NameValue(MetaNameValue {
-                path:
-                    syn::Path {
-                        leading_colon: None,
-                        segments,
-                    },
-                lit,
-                ..
-            })) if segments
-                .iter()
-                .map(|segment| &segment.ident)
-                .collect::<Vec<_>>()
-                == vec![&expected_ident] =>
-            {
-                match lit {
-                    Lit::Str(ref string) => Some(Ident::new(&string.value(), lit.span())),
-                    _ => None,
+        $attrs
+            .iter()
+            .find_map(|attr| match attr.clone() {
+                NestedMeta::Meta(Meta::NameValue(MetaNameValue {
+                    path:
+                        syn::Path {
+                            leading_colon: None,
+                            segments,
+                        },
+                    lit,
+                    ..
+                })) if segments
+                    .iter()
+                    .map(|segment| &segment.ident)
+                    .collect::<Vec<_>>()
+                    == vec![&expected_ident] =>
+                {
+                    match lit {
+                        Lit::Str(ref string) => Some(Ident::new(&string.value(), lit.span())),
+                        _ => None,
+                    }
                 }
-            }
-            _ => None,
-        })
+                _ => None,
+            })
+            .unwrap_or_else(|| Ident::new(&format!($otherwise, $input), $input.span()))
     }};
 }
 
-pub fn derive_names(input: Ident, attrs: &[NestedMeta]) -> Names {
-    let span = input.span();
-    let private_name = name_attr!(attrs, "private_name")
-        .unwrap_or_else(|| Ident::new(&format!("{}Private", input), span));
-    let public_name = name_attr!(attrs, "public_name")
-        .unwrap_or_else(|| Ident::new(&format!("{}Public", input), span));
-    let union_name = name_attr!(attrs, "union_name")
-        .unwrap_or_else(|| Ident::new(&format!("{}Union", input), span));
-    let container_name = name_attr!(attrs, "container_name").unwrap_or_else(|| input);
-
+pub fn derive_names(input: &Ident, attrs: &[NestedMeta]) -> Names {
     Names {
-        private_name,
-        public_name,
-        union_name,
-        container_name,
+        container_name: name_attr!(input, attrs, "container_name", "{}"),
+        private_name: name_attr!(input, attrs, "private_name", "{}Private"),
+        public_name: name_attr!(input, attrs, "public_name", "{}Public"),
+        union_name: name_attr!(input, attrs, "union_name", "{}Union"),
     }
 }
 
@@ -138,10 +134,9 @@ pub fn split_fields_by_privacy(fields: &syn::Fields) -> Fields {
     let mut private_fields = Vec::new();
     let mut public_fields = Vec::new();
 
-    for mut field in fields.clone() {
-        let is_private = check_privacy(&mut field);
-        if is_private {
-            private_fields.push(field);
+    for field in fields.clone() {
+        if is_private(&field) {
+            private_fields.push(remove_private_attrs(field));
         } else {
             public_fields.push(field);
         }

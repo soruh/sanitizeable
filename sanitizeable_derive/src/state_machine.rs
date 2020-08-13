@@ -1,16 +1,14 @@
-use crate::datatypes::{Attrs, FieldTokenStreams, Fields, Names};
-use crate::states::{
-    Absorbing, CalculateNames, Init, Intermediate, QuoteFields, SplitFieldsByPrivacy,
-    SplitStructAttributes,
+use crate::{
+    datatypes::{Attrs, FieldTokenStreams, Fields, Names},
+    states::{CalculateNames, Init, QuoteFields, SplitFieldsByPrivacy, SplitStructAttributes},
+    util::{
+        build_phantom_fields, derive_names, distribute_attributes, split_attrs,
+        split_fields_by_privacy, wrap_fields_in_parens,
+    },
 };
 use proc_macro::Diagnostic;
 use quote::quote;
 use syn::{AttributeArgs, ItemStruct};
-
-use crate::util::{
-    build_phantom_fields, derive_names, distribute_attributes, split_attrs,
-    split_fields_by_privacy, wrap_fields_in_parens,
-};
 
 pub fn run(args: AttributeArgs, input: ItemStruct) -> proc_macro2::TokenStream {
     if input.fields.is_empty() {
@@ -20,11 +18,29 @@ pub fn run(args: AttributeArgs, input: ItemStruct) -> proc_macro2::TokenStream {
     Init { args, input }.finish()
 }
 
+pub trait Intermediate {
+    type Output;
+    fn next(self) -> Self::Output;
+}
+
+pub trait Finishable {
+    fn finish(self) -> proc_macro2::TokenStream;
+}
+
+impl<S: Intermediate> Finishable for S
+where
+    S::Output: Finishable,
+{
+    fn finish(self) -> proc_macro2::TokenStream {
+        self.next().finish()
+    }
+}
+
 impl Intermediate for Init {
     type Output = CalculateNames;
     fn next(self) -> Self::Output {
         CalculateNames {
-            names: derive_names(self.input.ident.clone(), &self.args),
+            names: derive_names(&self.input.ident, &self.args),
             input: self.input,
         }
     }
@@ -77,7 +93,7 @@ impl Intermediate for SplitFieldsByPrivacy {
         }
     }
 }
-impl Absorbing for QuoteFields {
+impl Finishable for QuoteFields {
     fn finish(self) -> proc_macro2::TokenStream {
         let QuoteFields {
             input:

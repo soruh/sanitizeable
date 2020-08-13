@@ -96,8 +96,8 @@ fn main() {
 
     println!();
 
-    println!("{}", public_copy);
     println!("{}", user.into_private()); // Note: we `can` have into_private since I did some very ugly things to make it work (idk. if it actually does)
+    println!("{}", public_copy);
 
     // `user` has been moved
 }
