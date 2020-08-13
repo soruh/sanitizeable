@@ -1,6 +1,6 @@
 # Don't use this in production!
 
-- It uses lots of `unsafe` none of which has Safety comments
+- It uses lots of `unsafe` which is documented but has only been reviewed by me
 - it needs nightly (`#![feature(untagged_unions)]` and `#![feature(proc_macro_diagnostic)]`)
 - The resulting structs are always `repr(C)`.
 
@@ -23,4 +23,4 @@ I wanted automatic compile time guarantees that I don't accidentaly expose priva
 
 # Contributing
 
-If you think this is cool and want to make it useable, feel free to create a PR an Issue and to message me.
+If you think this is cool and want to make it useable, feel free to create a PR an Issue or to message me.

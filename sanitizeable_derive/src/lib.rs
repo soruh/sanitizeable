@@ -1,4 +1,5 @@
 #![feature(proc_macro_diagnostic)]
+#![warn(clippy::pedantic)]
 
 use proc_macro2::Span;
 use quote::quote;
@@ -111,7 +112,7 @@ macro_rules! name_attr {
     }};
 }
 
-fn derive_names(input: Ident, attrs: AttributeArgs) -> (Ident, Ident, Ident, Ident) {
+fn derive_names(input: Ident, attrs: &[NestedMeta]) -> (Ident, Ident, Ident, Ident) {
     let span = input.span();
     let private_name = name_attr!(attrs, "private_name")
         .unwrap_or_else(|| Ident::new(&format!("{}Private", input), span));
@@ -132,6 +133,7 @@ fn field_with_attrs(mut field: Field, mut attrs: Vec<Vec<Attribute>>) -> Field {
     field
 }
 
+#[allow(clippy::too_many_lines)]
 #[proc_macro_attribute]
 pub fn sanitizeable(
     args: proc_macro::TokenStream,
@@ -145,10 +147,10 @@ pub fn sanitizeable(
     let visibility = input.vis;
     let generics = input.generics;
 
-    let (private_attrs, public_attrs, normal_attrs, _phantom_attrs) = split_attrs(input.attrs);
+    let (private_attrs, public_attrs, normal_attrs, _) = split_attrs(input.attrs);
 
     let (private_name, public_name, union_name, container_name) =
-        derive_names(input.ident.clone(), args);
+        derive_names(input.ident.clone(), &args);
 
     let mut phantom_fields = Vec::new();
 
@@ -298,6 +300,13 @@ pub fn sanitizeable(
 
         impl #generics core::ops::Drop for #container_name #generics {
             fn drop(&mut self) {
+                /// Safety:
+                /// - Since `private` always contains all fields we can drop the whole structure by dropping `private`
+                /// - We ensure that `Drop` is only run if dropping `self.private` is still our responsibility (see `into_private`)
+                ///
+                /// We can run `core::mem::ManuallyDrop::drop` safely, since `self` can not be accessed after `drop`
+                /// and has not yet been dropped (see above). We can thus ensure that `core::mem::ManuallyDrop::drop` is only
+                /// called once
                 unsafe { core::mem::ManuallyDrop::drop(&mut self.0.private); }
             }
         }
@@ -312,25 +321,49 @@ pub fn sanitizeable(
                 })
             }
             fn public(&self) -> &Self::Public {
+                /// Safety:
+                /// - We ensure that `std::mem::ManuallyDrop` has not yet been dropped (see `into_private` and `impl Drop`)
+                /// - The fields of `public` are a strict subset of `private` and are in the same order.
+                /// It is thus safe to access and modify `public` without invalidating `private`
                 unsafe { &*self.0.public }
             }
             fn public_mut(&mut self) -> &mut Self::Public {
+                /// Safety:
+                /// see `public`
                 unsafe { &mut *self.0.public }
             }
             fn private(&self) -> &Self::Private {
+                /// Safety:
+                /// - We ensure that `std::mem::ManuallyDrop` has not yet been dropped (see `into_private` and `impl Drop`)
+                /// - The fields of `public` are a strict subset of `private` and are in the same order.
+                /// It is thus safe to access and modify `private` without invalidating `public`
                 unsafe { &*self.0.private }
             }
             fn private_mut(&mut self) -> &mut Self::Private {
+                /// Safety:
+                /// see `private`
                 unsafe { &mut *self.0.private }
             }
             fn into_private(self) -> Self::Private {
+                /// Safety:
+                /// - `std::mem::ManuallyDrop::drop` has not yet been called, since self still exists
+                ///     -> We can call `std::mem::ManuallyDrop::into_inner`
+                ///     - we `core::mem::forget(self);` to make sure that `Drop` does not run and drop `private` twice
+                /// - `Self` is `#[repr(transparent)]` which makes it safe to cast to it's inner value
                 let inner = unsafe {
                     let ptr = &self
                         as *const #container_name #generics
                         as *const #union_name     #generics;
 
+
+                    // Read the inner value ("cast" `self` to `#union_name`)
                     let value = ptr.read();
+
+                    // `core::mem::forget(self)` to skip running it's `Drop` implementation
+                    // This is done after the `ptr.read()` to ensure that the data pointed to by `ptr`
+                    // is valid during the read
                     core::mem::forget(self);
+
                     value
                 };
                 core::mem::ManuallyDrop::into_inner(unsafe {inner.private})

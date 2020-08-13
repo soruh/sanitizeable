@@ -21,11 +21,10 @@ where
 #[derive(Debug)]
 struct Unnamed(u64, #[private] f64);
 
-
 fn main() {
     let generic = GenericStruct::from_private(GenericStructPrivate::<u8> {
         name: "Some name",
-        value: 5
+        value: 5,
     });
 
     dbg!(generic.private());
