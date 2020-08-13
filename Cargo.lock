@@ -59,7 +59,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sanitizeable_tests"
+name = "sanitizeable_examples"
 version = "0.1.0"
 dependencies = [
  "sanitizeable",

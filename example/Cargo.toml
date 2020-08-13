@@ -1,5 +1,5 @@
 [package]
-name = "sanitizeable_tests"
+name = "sanitizeable_examples"
 version = "0.1.0"
 authors = ["soruh <mail@soruh.de>"]
 edition = "2018"
@@ -13,14 +13,18 @@ sanitizeable = { path = "../sanitizeable" }
 [dev-dependencies]
 trybuild = "1.0.32"
 
-[[bin]]
+[[example]]
 name = "misc"
-path = "test/pass/misc.rs"
+path = "examples/pass/misc.rs"
+test = false
 
-[[bin]]
+[[example]]
 name = "product"
-path = "test/pass/product.rs"
+path = "examples/pass/product.rs"
+test = false
 
-[[bin]]
+[[example]]
 name = "user"
-path = "test/pass/user.rs"
+path = "examples/pass/user.rs"
+test = false
+
