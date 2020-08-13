@@ -11,4 +11,16 @@ publish = false
 sanitizeable = { path = "../sanitizeable" }
 
 [dev-dependencies]
-trybuild = "1.0.31"
+trybuild = "1.0.32"
+
+[[bin]]
+name = "misc"
+path = "test/pass/misc.rs"
+
+[[bin]]
+name = "product"
+path = "test/pass/product.rs"
+
+[[bin]]
+name = "user"
+path = "test/pass/user.rs"
