@@ -1,7 +1,9 @@
 #![feature(proc_macro_diagnostic)]
-#![warn(clippy::pedantic)]
+#![deny(clippy::pedantic)]
 
-mod state;
+mod datatypes;
+mod state_machine;
+mod states;
 mod util;
 
 use syn::parse_macro_input;
@@ -11,5 +13,5 @@ pub fn sanitizeable(
     args: proc_macro::TokenStream,
     input: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {
-    state::run(parse_macro_input!(args), parse_macro_input!(input)).into()
+    state_machine::run(parse_macro_input!(args), parse_macro_input!(input)).into()
 }

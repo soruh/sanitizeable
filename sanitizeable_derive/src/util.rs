@@ -1,11 +1,10 @@
+use crate::datatypes::{Attrs, FieldTokenStreams, Fields, Names};
 use proc_macro::Diagnostic;
 use proc_macro2::Span;
 use quote::quote;
 use syn::{
     Attribute, Field, FieldsNamed, FieldsUnnamed, Ident, Lit, Meta, MetaNameValue, NestedMeta,
 };
-
-use crate::state::{Attrs, FieldTokenStreams, Fields, Names};
 
 pub fn check_privacy(field: &mut Field) -> bool {
     // dbg!(quote! {#field}.to_string());
@@ -151,15 +150,15 @@ pub fn split_fields_by_privacy(fields: &syn::Fields) -> Fields {
     Fields {
         private_fields,
         public_fields,
-        phantom_fields: None,
+        phantom_fields: vec![],
     }
 }
 
 pub fn distribute_attributes(fields: Fields) -> Fields {
     let mut private_fields: Vec<Field> = Vec::new();
     let mut public_fields: Vec<Field> = Vec::new();
+    let mut phantom_fields: Vec<Field> = Vec::new();
 
-    let mut phantom_fields = Vec::new();
     for field in fields.public_fields {
         let attrs = split_attrs(&field.attrs);
 
@@ -189,8 +188,6 @@ pub fn distribute_attributes(fields: Fields) -> Fields {
     if phantom_fields.is_empty() {
         Diagnostic::new(proc_macro::Level::Warning, "struct has no private fields").emit();
     }
-
-    let phantom_fields = Some(phantom_fields);
 
     Fields {
         public_fields,

@@ -1,6 +1,16 @@
+use crate::datatypes::{Attrs, FieldTokenStreams, Fields, Names};
+use crate::states::{
+    Absorbing, CalculateNames, Init, Intermediate, QuoteFields, SplitFieldsByPrivacy,
+    SplitStructAttributes,
+};
 use proc_macro::Diagnostic;
 use quote::quote;
-use syn::{Attribute, AttributeArgs, Ident, ItemStruct};
+use syn::{AttributeArgs, ItemStruct};
+
+use crate::util::{
+    build_phantom_fields, derive_names, distribute_attributes, split_attrs,
+    split_fields_by_privacy, wrap_fields_in_parens,
+};
 
 pub fn run(args: AttributeArgs, input: ItemStruct) -> proc_macro2::TokenStream {
     if input.fields.is_empty() {
@@ -8,59 +18,6 @@ pub fn run(args: AttributeArgs, input: ItemStruct) -> proc_macro2::TokenStream {
     }
 
     Init { args, input }.finish()
-}
-
-pub trait Intermediate {
-    type Output;
-    fn next(self) -> Self::Output;
-}
-
-pub trait Absorbing {
-    fn finish(self) -> proc_macro2::TokenStream;
-}
-
-impl<S: Intermediate> Absorbing for S
-where
-    S::Output: Absorbing,
-{
-    fn finish(self) -> proc_macro2::TokenStream {
-        self.next().finish()
-    }
-}
-
-use crate::util::{
-    build_phantom_fields, derive_names, distribute_attributes, split_attrs,
-    split_fields_by_privacy, wrap_fields_in_parens,
-};
-
-pub struct Attrs {
-    pub private_attrs: Vec<Attribute>,
-    pub public_attrs: Vec<Attribute>,
-    pub normal_attrs: Vec<Attribute>,
-    pub phantom_attrs: Option<Vec<Attribute>>,
-}
-
-pub struct Names {
-    pub private_name: Ident,
-    pub public_name: Ident,
-    pub union_name: Ident,
-    pub container_name: Ident,
-}
-
-pub struct Fields {
-    pub private_fields: Vec<syn::Field>,
-    pub public_fields: Vec<syn::Field>,
-    pub phantom_fields: Option<Vec<syn::Field>>,
-}
-
-pub struct FieldTokenStreams {
-    pub private_fields: proc_macro2::TokenStream,
-    pub public_fields: proc_macro2::TokenStream,
-}
-
-pub struct Init {
-    args: AttributeArgs,
-    input: ItemStruct,
 }
 
 impl Intermediate for Init {
@@ -72,12 +29,6 @@ impl Intermediate for Init {
         }
     }
 }
-
-pub struct CalculateNames {
-    input: ItemStruct,
-    names: Names,
-}
-
 impl Intermediate for CalculateNames {
     type Output = SplitStructAttributes;
     fn next(self) -> Self::Output {
@@ -88,13 +39,6 @@ impl Intermediate for CalculateNames {
         }
     }
 }
-
-pub struct SplitStructAttributes {
-    input: ItemStruct,
-    names: Names,
-    struct_attrs: Attrs,
-}
-
 impl Intermediate for SplitStructAttributes {
     type Output = SplitFieldsByPrivacy;
     fn next(self) -> Self::Output {
@@ -107,13 +51,6 @@ impl Intermediate for SplitStructAttributes {
     }
 }
 
-pub struct SplitFieldsByPrivacy {
-    input: ItemStruct,
-    names: Names,
-    struct_attrs: Attrs,
-    fields: Fields,
-}
-
 impl Intermediate for SplitFieldsByPrivacy {
     type Output = QuoteFields;
     fn next(self) -> Self::Output {
@@ -123,7 +60,7 @@ impl Intermediate for SplitFieldsByPrivacy {
             phantom_fields,
         } = self.fields;
 
-        let phantom = build_phantom_fields(phantom_fields.unwrap());
+        let phantom = build_phantom_fields(phantom_fields);
 
         let fields = FieldTokenStreams {
             private_fields: quote! { #(#private_fields,)* },
@@ -140,14 +77,6 @@ impl Intermediate for SplitFieldsByPrivacy {
         }
     }
 }
-
-pub struct QuoteFields {
-    input: ItemStruct,
-    names: Names,
-    struct_attrs: Attrs,
-    fields: FieldTokenStreams,
-}
-
 impl Absorbing for QuoteFields {
     fn finish(self) -> proc_macro2::TokenStream {
         let QuoteFields {
