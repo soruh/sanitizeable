@@ -44,16 +44,14 @@ checksum = "71d301d4193d031abdd79ff7e3dd721168a9572ef3fe51a1517aba235bd8f86e"
 
 [[package]]
 name = "sanitizeable"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
- "sanitizeable_derive 0.1.0",
+ "sanitizeable_derive 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "sanitizeable_derive"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6bb84f76bd35b30c31a976c0b9f21d22bc6e27719f7b8e698a432c0e673c28e4"
+version = "0.1.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -63,6 +61,8 @@ dependencies = [
 [[package]]
 name = "sanitizeable_derive"
 version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e0ad816a9d057f90e22594784b096c1d27aa83f675389aa636594c896ea33ac"
 dependencies = [
  "proc-macro2",
  "quote",
