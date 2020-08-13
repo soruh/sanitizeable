@@ -1,6 +1,7 @@
 #![feature(proc_macro_diagnostic)]
 #![warn(clippy::pedantic)]
 
+use proc_macro::Diagnostic;
 use proc_macro2::Span;
 use quote::quote;
 use syn::{
@@ -28,7 +29,7 @@ fn build_remaining_attr(
 ) -> syn::punctuated::Punctuated<syn::PathSegment, syn::Token!(::)> {
     let last_segment = &segments.clone().last().expect("Empty attribute").ident;
     if last_segment.to_string().as_str() == "cfg" {
-        proc_macro::Diagnostic::spanned(
+        Diagnostic::spanned(
             last_segment.span().unwrap(),
             proc_macro::Level::Error,
             "You may not use #[cfg(...)] in an attribute that is only applied to some variants",
@@ -133,45 +134,12 @@ fn field_with_attrs(mut field: Field, mut attrs: Vec<Vec<Attribute>>) -> Field {
     field
 }
 
-#[allow(clippy::too_many_lines)]
-#[proc_macro_attribute]
-pub fn sanitizeable(
-    args: proc_macro::TokenStream,
-    input: proc_macro::TokenStream,
-) -> proc_macro::TokenStream {
-    let args = parse_macro_input!(args as AttributeArgs);
-    let input = parse_macro_input!(input as ItemStruct);
-
-    let semi_token = input.semi_token;
-
-    let visibility = input.vis;
-    let generics = input.generics;
-
-    let (private_attrs, public_attrs, normal_attrs, _) = split_attrs(input.attrs);
-
-    let (private_name, public_name, union_name, container_name) =
-        derive_names(input.ident.clone(), &args);
-
-    let mut phantom_fields = Vec::new();
-
-    if input.fields.is_empty() {
-        proc_macro::Diagnostic::spanned(
-            vec![
-                input.struct_token.span.unwrap(),
-                input.ident.span().unwrap(),
-            ],
-            proc_macro::Level::Error,
-            "struct has no fields",
-        )
-        .emit();
-    }
-
+fn split_fields_by_privacy(fields: &syn::Fields) -> (Vec<Field>, Vec<Field>) {
     let mut private = Vec::new();
     let mut public = Vec::new();
 
-    for mut field in input.fields.clone() {
+    for mut field in fields.clone() {
         let is_private = check_privacy(&mut field);
-
         if is_private {
             private.push(field);
         } else {
@@ -179,45 +147,53 @@ pub fn sanitizeable(
         }
     }
 
-    let mut private_fields: Vec<Field> = Vec::new();
-    let mut public_fields: Vec<Field> = Vec::new();
+    (private, public)
+}
 
-    for field in public {
+fn add_attributes(
+    private_fields: Vec<Field>,
+    public_fields: Vec<Field>,
+) -> (Vec<Field>, Vec<Field>, Vec<Field>) {
+    let mut private_fields_with_attrs: Vec<Field> = Vec::new();
+    let mut public_fields_with_attrs: Vec<Field> = Vec::new();
+
+    let mut phantom_fields = Vec::new();
+    for field in public_fields {
         let (private_attrs, public_attrs, normal_attrs, _) = split_attrs(field.attrs.clone());
 
-        public_fields.push(field_with_attrs(
+        public_fields_with_attrs.push(field_with_attrs(
             field.clone(),
             vec![public_attrs, normal_attrs.clone()],
         ));
-        private_fields.push(field_with_attrs(
+        private_fields_with_attrs.push(field_with_attrs(
             field,
             vec![private_attrs.clone(), normal_attrs.clone()],
         ));
     }
 
-    for field in private {
+    for field in private_fields {
         let (private_attrs, _, normal_attrs, phantom_attrs) = split_attrs(field.attrs.clone());
 
         phantom_fields.push(field_with_attrs(
             field.clone(),
             vec![phantom_attrs, normal_attrs.clone()],
         ));
-        private_fields.push(field_with_attrs(field, vec![private_attrs, normal_attrs]));
+        private_fields_with_attrs.push(field_with_attrs(field, vec![private_attrs, normal_attrs]));
     }
 
     if phantom_fields.is_empty() {
-        proc_macro::Diagnostic::spanned(
-            vec![
-                input.struct_token.span.unwrap(),
-                input.ident.span().unwrap(),
-            ],
-            proc_macro::Level::Warning,
-            "struct has no private fields",
-        )
-        .emit();
+        Diagnostic::new(proc_macro::Level::Warning, "struct has no private fields").emit();
     }
 
-    let phantom = if phantom_fields.is_empty() {
+    (
+        private_fields_with_attrs,
+        public_fields_with_attrs,
+        phantom_fields,
+    )
+}
+
+fn build_phantom_fields(phantom_fields: Vec<Field>) -> proc_macro2::TokenStream {
+    if phantom_fields.is_empty() {
         proc_macro2::TokenStream::new()
     } else {
         let mut names = Vec::new();
@@ -234,47 +210,74 @@ pub fn sanitizeable(
         quote! {
             #(#names core::marker::PhantomData<#types>,)*
         }
-    };
+    }
+}
 
-    let mut private_fields = quote! {
-        #(#private_fields,)*
-    };
-
-    let mut public_fields = quote! {
-        #(#public_fields,)*
-        #phantom
-    };
-
-    // dbg!(private_fields.to_string());
-    // dbg!(public_fields.to_string());
-
-    match &input.fields {
+fn wrap_fields_in_parens(
+    public_fields: proc_macro2::TokenStream,
+    private_fields: proc_macro2::TokenStream,
+    input_fields: &syn::Fields,
+) -> (proc_macro2::TokenStream, proc_macro2::TokenStream) {
+    match &input_fields {
         syn::Fields::Named(FieldsNamed { brace_token, .. }) => {
             let mut new_private_fields = proc_macro2::TokenStream::new();
             brace_token.surround(&mut new_private_fields, |f| *f = private_fields);
-            private_fields = new_private_fields;
 
             let mut new_public_fields = proc_macro2::TokenStream::new();
             brace_token.surround(&mut new_public_fields, |f| *f = public_fields);
-            public_fields = new_public_fields;
+
+            (new_public_fields, new_private_fields)
         }
         syn::Fields::Unnamed(FieldsUnnamed { paren_token, .. }) => {
             let mut new_private_fields = proc_macro2::TokenStream::new();
             paren_token.surround(&mut new_private_fields, |f| *f = private_fields);
-            private_fields = new_private_fields;
 
             let mut new_public_fields = proc_macro2::TokenStream::new();
             paren_token.surround(&mut new_public_fields, |f| *f = public_fields);
-            public_fields = new_public_fields;
+
+            (new_public_fields, new_private_fields)
         }
         syn::Fields::Unit => {
             assert!(private_fields.is_empty());
             assert!(public_fields.is_empty());
-        }
-    };
 
-    // println!("private_fields: {}", private_fields);
-    // println!("public_fields: {}", public_fields);
+            (public_fields, private_fields)
+        }
+    }
+}
+
+#[proc_macro_attribute]
+pub fn sanitizeable(
+    args: proc_macro::TokenStream,
+    input: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
+    let args = parse_macro_input!(args as AttributeArgs);
+    let input = parse_macro_input!(input as ItemStruct);
+
+    if input.fields.is_empty() {
+        Diagnostic::new(proc_macro::Level::Error, "struct has no fields").emit();
+    }
+
+    let semi_token = input.semi_token;
+    let visibility = input.vis;
+    let generics = input.generics;
+
+    let (private_attrs, public_attrs, normal_attrs, _) = split_attrs(input.attrs);
+    let (private_name, public_name, union_name, container_name) =
+        derive_names(input.ident.clone(), &args);
+
+    let (public_fields, private_fields) = split_fields_by_privacy(&input.fields);
+
+    let (private_fields_with_attrs, public_fields_with_attrs, phantom_fields) =
+        add_attributes(public_fields, private_fields);
+
+    let phantom_fields = build_phantom_fields(phantom_fields);
+
+    let private_fields = quote! { #(#private_fields_with_attrs,)* };
+    let public_fields = quote! { #(#public_fields_with_attrs,)* #phantom_fields };
+
+    let (public_fields, private_fields) =
+        wrap_fields_in_parens(public_fields, private_fields, &input.fields);
 
     let expanded = quote! {
         #(#private_attrs)*
@@ -370,8 +373,6 @@ pub fn sanitizeable(
             }
         }
     };
-
-    // println!("expanded: {}", expanded);
 
     proc_macro::TokenStream::from(expanded)
 }
