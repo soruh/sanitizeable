@@ -3,7 +3,9 @@ name = "sanitizeable_derive"
 version = "0.1.0"
 authors = ["soruh <mail@soruh.de>"]
 edition = "2018"
-publish = false
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/soruh/sanitizeable/"
+readme = "../README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
