@@ -147,14 +147,14 @@ impl Finishable for QuoteFields {
 
 
             impl #generics core::ops::Drop for #container_name #generics {
+                /// Safety:
+                /// - Since `private` always contains all fields we can drop the whole structure by dropping `private`
+                /// - We ensure that `Drop` is only run if dropping `self.private` is still our responsibility (see `into_private`)
+                ///
+                /// We can run `core::mem::ManuallyDrop::drop` safely, since `self` can not be accessed after `drop`
+                /// and has not yet been dropped (see above). We can thus ensure that `core::mem::ManuallyDrop::drop` is only
+                /// called once
                 fn drop(&mut self) {
-                    /// Safety:
-                    /// - Since `private` always contains all fields we can drop the whole structure by dropping `private`
-                    /// - We ensure that `Drop` is only run if dropping `self.private` is still our responsibility (see `into_private`)
-                    ///
-                    /// We can run `core::mem::ManuallyDrop::drop` safely, since `self` can not be accessed after `drop`
-                    /// and has not yet been dropped (see above). We can thus ensure that `core::mem::ManuallyDrop::drop` is only
-                    /// called once
                     unsafe { core::mem::ManuallyDrop::drop(&mut self.0.private); }
                 }
             }
@@ -168,36 +168,38 @@ impl Finishable for QuoteFields {
                         private: core::mem::ManuallyDrop::new(private),
                     })
                 }
+                /// Safety:
+                /// - We ensure that `std::mem::ManuallyDrop` has not yet been dropped (see `into_private` and `impl Drop`)
+                /// - The fields of `public` are a strict subset of `private` and are in the same order.
+                ///
+                /// It is thus safe to access and modify `public` without invalidating `private`
                 fn public(&self) -> &Self::Public {
-                    /// Safety:
-                    /// - We ensure that `std::mem::ManuallyDrop` has not yet been dropped (see `into_private` and `impl Drop`)
-                    /// - The fields of `public` are a strict subset of `private` and are in the same order.
-                    /// It is thus safe to access and modify `public` without invalidating `private`
                     unsafe { &*self.0.public }
                 }
+                /// Safety:
+                /// see `public`
                 fn public_mut(&mut self) -> &mut Self::Public {
-                    /// Safety:
-                    /// see `public`
                     unsafe { &mut *self.0.public }
                 }
+                /// Safety:
+                /// - We ensure that `std::mem::ManuallyDrop` has not yet been dropped (see `into_private` and `impl Drop`)
+                /// - The fields of `public` are a strict subset of `private` and are in the same order.
+                ///
+                /// It is thus safe to access and modify `private` without invalidating `public`
                 fn private(&self) -> &Self::Private {
-                    /// Safety:
-                    /// - We ensure that `std::mem::ManuallyDrop` has not yet been dropped (see `into_private` and `impl Drop`)
-                    /// - The fields of `public` are a strict subset of `private` and are in the same order.
-                    /// It is thus safe to access and modify `private` without invalidating `public`
                     unsafe { &*self.0.private }
                 }
+                /// Safety:
+                /// see `private`
                 fn private_mut(&mut self) -> &mut Self::Private {
-                    /// Safety:
-                    /// see `private`
                     unsafe { &mut *self.0.private }
                 }
+                /// Safety:
+                /// - `std::mem::ManuallyDrop::drop` has not yet been called, since self still exists
+                ///     -> We can call `std::mem::ManuallyDrop::into_inner`
+                ///     - we `core::mem::forget(self);` to make sure that `Drop` does not run and drop `private` twice
+                /// - `Self` is `#[repr(transparent)]` which makes it safe to cast to it's inner value
                 fn into_private(self) -> Self::Private {
-                    /// Safety:
-                    /// - `std::mem::ManuallyDrop::drop` has not yet been called, since self still exists
-                    ///     -> We can call `std::mem::ManuallyDrop::into_inner`
-                    ///     - we `core::mem::forget(self);` to make sure that `Drop` does not run and drop `private` twice
-                    /// - `Self` is `#[repr(transparent)]` which makes it safe to cast to it's inner value
                     let inner = unsafe {
                         let ptr = &self
                             as *const #container_name #generics
