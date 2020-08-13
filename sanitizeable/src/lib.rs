@@ -1,4 +1,4 @@
-pub use sanitizeable_derive::*;
+pub use sanitizeable_derive::sanitizeable;
 
 pub trait Sanitizeable: Sized {
     type Public;

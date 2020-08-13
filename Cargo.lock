@@ -74,6 +74,8 @@ name = "sanitizeable_examples"
 version = "0.1.0"
 dependencies = [
  "sanitizeable",
+ "serde",
+ "serde_json",
  "trybuild",
 ]
 
